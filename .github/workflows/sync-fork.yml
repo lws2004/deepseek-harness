@@ -16,10 +16,30 @@ jobs:
         with:
           ref: master
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Sync upstream
         run: |
-          git remote add upstream https://github.com/deepseek-ai/deepseek-harness.git
+          # 配置 git 用户信息
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # 添加上游远程仓库（如果不存在）
+          git remote add upstream https://github.com/deepseek-ai/deepseek-harness.git 2>/dev/null || true
           git fetch upstream
-          git merge --ff-only upstream/master
-          git push origin master
+
+          # 尝试快速前进合并
+          if git merge --ff-only upstream/master; then
+            echo "✅ 快速前进合并成功"
+            git push origin master
+          else
+            echo "⚠️ 无法快速前进，尝试普通合并..."
+            # 如果有冲突，需要人工解决
+            if git merge upstream/master; then
+              echo "✅ 合并成功"
+              git push origin master
+            else
+              echo "❌ 合并冲突，需要人工解决"
+              exit 1
+            fi
+          fi
