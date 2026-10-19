@@ -5,18 +5,33 @@ on:
     - cron: "0 3 * * *"   # 每天 UTC 3 点（北京时间 11 点）
   workflow_dispatch:        # 支持手动触发
 
+# GITHUB_TOKEN 是 GitHub App token，没有 workflows 权限，无法推送含
+# .github/workflows/ 变更的提交；因此 checkout/push 使用仓库 secret SYNC_TOKEN。
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: sync-fork
+  cancel-in-progress: false
 
 jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
+      - name: Require SYNC_TOKEN
+        env:
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          if [ -z "$SYNC_TOKEN" ]; then
+            echo "::error::缺少 SYNC_TOKEN。请创建仅授权本仓库、含 Contents 与 Workflows 读写权限的细粒度 PAT，并添加为仓库 secret。"
+            exit 1
+          fi
+
       - uses: actions/checkout@v5
         with:
           ref: master
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.SYNC_TOKEN }}
 
       - name: Sync upstream
         run: |
@@ -26,20 +41,19 @@ jobs:
 
           # 添加上游远程仓库（如果不存在）
           git remote add upstream https://github.com/deepseek-ai/deepseek-harness.git 2>/dev/null || true
-          git fetch upstream
+          git fetch upstream master
 
           # 尝试快速前进合并
           if git merge --ff-only upstream/master; then
             echo "✅ 快速前进合并成功"
-            git push origin master
           else
             echo "⚠️ 无法快速前进，尝试普通合并..."
             # 如果有冲突，需要人工解决
-            if git merge upstream/master; then
-              echo "✅ 合并成功"
-              git push origin master
-            else
+            if ! git merge upstream/master; then
               echo "❌ 合并冲突，需要人工解决"
               exit 1
             fi
+            echo "✅ 合并成功"
           fi
+
+          git push origin master
