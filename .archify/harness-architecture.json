@@ -1,0 +1,332 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "DeepSeek Harness 架构",
+    "output": "harness-architecture.html",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1450,
+      550
+    ],
+    "views": [
+      {
+        "id": "turn-path",
+        "label": "一次 turn 的主路径",
+        "focus": [
+          "clients",
+          "composition",
+          "agentLoop",
+          "llm",
+          "deepseekApi"
+        ],
+        "note": "从客户端启动 profile 到 DeepSeek API 的流式请求全程。"
+      },
+      {
+        "id": "tool-path",
+        "label": "工具执行管道",
+        "focus": [
+          "agentLoop",
+          "tools",
+          "capabilities"
+        ],
+        "note": "tool/call 经守护执行管道抵达能力 provider,再落回事件日志。"
+      },
+      {
+        "id": "session-truth",
+        "label": "会话真相源",
+        "focus": [
+          "agentLoop",
+          "session"
+        ],
+        "note": "append-only 事件日志是模型上下文与持久化的唯一事实源:模型可见 ⟺ 已记录。"
+      },
+      {
+        "id": "extension-points",
+        "label": "扩展点",
+        "focus": [
+          "cordis",
+          "tools",
+          "session"
+        ],
+        "note": "一切皆插件:services、typed 事件与 effects 汇入共享 context,可从配置整体替换。"
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "clients",
+      "type": "external",
+      "label": "客户端",
+      "sublabel": "Web GUI · dsh CLI · TS / Python SDK · ACP",
+      "pos": [
+        40,
+        144
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "composition",
+      "type": "backend",
+      "label": "Profile + Bundle",
+      "sublabel": "dsh-base + 应用 bundle + patch",
+      "tag": "--profile web / headless / sdk / acp",
+      "pos": [
+        300,
+        144
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "agentLoop",
+      "type": "backend",
+      "label": "core/agent-loop",
+      "sublabel": "turn / step 驱动 · inbox · pre-step",
+      "pos": [
+        560,
+        144
+      ],
+      "size": [
+        175,
+        64
+      ]
+    },
+    {
+      "id": "prompt",
+      "type": "backend",
+      "label": "core/system-prompt",
+      "sublabel": "prompt sections + tool schemas",
+      "pos": [
+        560,
+        34
+      ],
+      "size": [
+        175,
+        64
+      ]
+    },
+    {
+      "id": "llm",
+      "type": "backend",
+      "label": "dsh-llm",
+      "sublabel": "LLM 适配器 seam · DeepSeek provider",
+      "pos": [
+        820,
+        144
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "deepseekApi",
+      "type": "external",
+      "label": "DeepSeek API",
+      "sublabel": "流式补全",
+      "pos": [
+        1090,
+        144
+      ],
+      "size": [
+        135,
+        64
+      ]
+    },
+    {
+      "id": "session",
+      "type": "database",
+      "label": "core/session",
+      "sublabel": "append-only SessionEvent 日志",
+      "tag": "JSONL 世代持久化",
+      "pos": [
+        300,
+        284
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "tools",
+      "type": "backend",
+      "label": "core/tools",
+      "sublabel": "工具注册表 · 守护执行管道",
+      "pos": [
+        560,
+        284
+      ],
+      "size": [
+        175,
+        64
+      ]
+    },
+    {
+      "id": "capabilities",
+      "type": "backend",
+      "label": "能力 provider",
+      "sublabel": "shell · fs · subprocess · web · subagent · workflow · skill · lsp",
+      "pos": [
+        820,
+        284
+      ],
+      "size": [
+        244,
+        64
+      ]
+    },
+    {
+      "id": "cordis",
+      "type": "messagebus",
+      "label": "Cordis Context",
+      "sublabel": "services · typed events · effects",
+      "pos": [
+        300,
+        414
+      ],
+      "size": [
+        175,
+        64
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "dsh 进程 · Cordis 插件树",
+      "wraps": [
+        "composition",
+        "agentLoop",
+        "prompt",
+        "llm",
+        "session",
+        "tools",
+        "capabilities",
+        "cordis"
+      ],
+      "pad": 24
+    },
+    {
+      "kind": "security-group",
+      "label": "审批 · 沙箱 · guard 策略",
+      "wraps": [
+        "tools",
+        "capabilities"
+      ],
+      "pad": 12
+    }
+  ],
+  "connections": [
+    {
+      "id": "clients-to-composition",
+      "from": "clients",
+      "to": "composition",
+      "label": "启动",
+      "variant": "emphasis"
+    },
+    {
+      "id": "composition-to-agentloop",
+      "from": "composition",
+      "to": "agentLoop",
+      "label": "组装插件树"
+    },
+    {
+      "id": "agentloop-to-prompt",
+      "from": "agentLoop",
+      "to": "prompt",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "label": "每 step 组装"
+    },
+    {
+      "id": "agentloop-to-llm",
+      "from": "agentLoop",
+      "to": "llm",
+      "label": "agent/request"
+    },
+    {
+      "id": "llm-to-deepseekapi",
+      "from": "llm",
+      "to": "deepseekApi",
+      "label": "SSE"
+    },
+    {
+      "id": "agentloop-to-session",
+      "from": "agentLoop",
+      "to": "session",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "读历史 · 追加事件"
+    },
+    {
+      "id": "agentloop-to-tools",
+      "from": "agentLoop",
+      "to": "tools",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "tool/call",
+      "labelAt": [
+        685,
+        239
+      ]
+    },
+    {
+      "id": "tools-to-capabilities",
+      "from": "tools",
+      "to": "capabilities",
+      "label": "执行 provider"
+    },
+    {
+      "id": "session-to-cordis",
+      "from": "session",
+      "to": "cordis",
+      "variant": "dashed",
+      "label": "session/event",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "tools-to-cordis",
+      "from": "tools",
+      "to": "cordis",
+      "variant": "dashed",
+      "label": "agent/* · tools/* 事件"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "启动与组合",
+      "items": [
+        "dsh CLI 以命名 profile 启动全部受支持的 Node 应用",
+        "profile = 有序 bundle 层 + patch:dsh-base / web-app / headless / sdk-app / acp-app",
+        "patch 按 id 替换整行配置,自定义 profile 支持热重载"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "一次 turn",
+      "items": [
+        "inbox 认领输入,agent/pre-step 瀑布决定模型可见内容",
+        "agent/request → llm/stream 流式返回,提交为 assistant/message",
+        "tool/call 经 pre-execute → execute → post-execute 管道"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "会话真相与扩展点",
+      "items": [
+        "append-only SessionEvent 日志:模型可见 ⟺ 已记录",
+        "deriveMessages() 从日志投影模型历史,fork / resume / 回放同源",
+        "session/* · agent/* · tools/* 三类事件域即扩展点"
+      ]
+    }
+  ]
+}
